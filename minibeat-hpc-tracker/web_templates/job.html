@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}MiniBeat HPC — job {{ job.id }}{% endblock %}
+{% block content %}
+
+<section class="card">
+  <div class="job-header">
+    <div>
+      <h2>Job <code>{{ job.id }}</code></h2>
+      <p class="muted">Created {{ job.created }}</p>
+    </div>
+    <div class="job-actions">
+      <span id="state-badge" class="state state-{{ job.state }}">{{ job.state }}</span>
+      {% if job.state == "done" %}
+      <a href="{{ url_for('job_zip', jid=job.id) }}" class="btn">Download ZIP</a>
+      {% endif %}
+      {% if job.state not in ("running", "pending") %}
+      <button id="btn-delete" class="btn btn-danger">Delete</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <table class="kv">
+    <tr><th>State</th>    <td id="td-state">{{ job.state }}</td></tr>
+    <tr><th>Started</th>  <td>{{ job.started or "—" }}</td></tr>
+    <tr><th>Finished</th> <td id="td-finished">{{ job.finished or "—" }}</td></tr>
+    <tr><th>Duration</th> <td id="td-elapsed">{{ job.elapsed or "—" }}</td></tr>
+    <tr><th>Exit code</th><td id="td-rc">{{ job.rc if job.rc is not none else "—" }}</td></tr>
+    <tr><th>CPU cores</th><td>{{ job.cpu_count }}</td></tr>
+  </table>
+</section>
+
+{% if job.params %}
+<section class="card">
+  <h3>Parameters</h3>
+  <div class="table-wrap">
+  <table class="kv kv-small">
+    <tr><th>Frame rate</th>       <td>{{ job.params.framerate }} fps</td></tr>
+    <tr><th>Macroblock size</th>  <td>{{ job.params.mb_size }} px</td></tr>
+    <tr><th>Search range</th>     <td>{{ job.params.search_range }} px</td></tr>
+    <tr><th>Delay</th>            <td>{{ job.params.delay }} frames</td></tr>
+    <tr><th>Scale width</th>      <td>{{ job.params.scale_width or "native" }}</td></tr>
+    <tr><th>Pixel size</th>       <td>{{ job.params.pixel_size_um or "—" }} µm</td></tr>
+    <tr><th>Intensity correction</th><td>{{ "yes" if job.params.correct_intensity else "no" }}</td></tr>
+    <tr><th>Min brightness</th>   <td>{{ job.params.min_brightness }}%</td></tr>
+    <tr><th>Clean: neighbour σ</th><td>{{ job.params.clean_vect_thresh }}</td></tr>
+    <tr><th>Clean: FFT thresh</th><td>{{ job.params.clean_fft_thresh }}</td></tr>
+    <tr><th>Clean: CoV thresh</th><td>{{ job.params.clean_var_thresh }}</td></tr>
+    <tr><th>Workers</th>          <td>{{ job.params.n_jobs }} (−1 = all cores)</td></tr>
+    <tr><th>Export video</th>     <td>{{ "yes" if job.params.export_video else "no" }}</td></tr>
+    <tr><th>Video colormap</th>   <td>{{ job.params.video_colormap }}</td></tr>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="card">
+  <h3>Live log</h3>
+  <div id="log-box" class="log-box">
+    <pre id="log-pre"></pre>
+  </div>
+  <p class="muted" id="log-status"></p>
+</section>
+
+<section class="card" id="files-section" style="display:none">
+  <h3>Output files</h3>
+  <div class="table-wrap">
+  <table class="jobs" id="files-table">
+    <thead><tr><th>File</th><th>Size</th><th></th></tr></thead>
+    <tbody id="files-body"></tbody>
+  </table>
+  </div>
+  <p class="muted" style="margin-top:.5rem">
+    <a href="{{ url_for('job_zip', jid=job.id) }}" id="dl-zip">Download all as ZIP</a>
+  </p>
+</section>
+
+<script>
+const JOB_ID  = {{ job.id | tojson }};
+const RUNNING = {{ (job.state == "running") | tojson }};
+
+// ---- Live log via SSE -------------------------------------------------------
+const logPre    = document.getElementById('log-pre');
+const logStatus = document.getElementById('log-status');
+const stateBadge = document.getElementById('state-badge');
+
+function appendLog(text) {
+  logPre.textContent += text + '\n';
+  const box = document.getElementById('log-box');
+  box.scrollTop = box.scrollHeight;
+}
+
+function updateStatus(snap) {
+  if (stateBadge) {
+    stateBadge.textContent = snap.state;
+    stateBadge.className   = 'state state-' + snap.state;
+  }
+  const tdState    = document.getElementById('td-state');
+  const tdFinished = document.getElementById('td-finished');
+  const tdElapsed  = document.getElementById('td-elapsed');
+  const tdRc       = document.getElementById('td-rc');
+  if (tdState)    tdState.textContent    = snap.state;
+  if (tdFinished) tdFinished.textContent = snap.finished || '—';
+  if (tdElapsed)  tdElapsed.textContent  = snap.elapsed  || '—';
+  if (tdRc)       tdRc.textContent       = snap.rc !== null ? snap.rc : '—';
+}
+
+if (RUNNING) {
+  const es = new EventSource(`/jobs/${JOB_ID}/stream`);
+  es.onmessage = (e) => appendLog(e.data);
+  es.addEventListener('done', (e) => {
+    es.close();
+    logStatus.textContent = `Pipeline ${e.data}.`;
+    // Refresh status table and file list
+    fetch(`/jobs/${JOB_ID}/status`)
+      .then(r => r.json())
+      .then(snap => { updateStatus(snap); loadFiles(); });
+  });
+  es.onerror = () => {
+    es.close();
+    logStatus.textContent = 'Stream disconnected.';
+  };
+} else {
+  // Job already finished — pull the full log once via polling
+  let offset = 0;
+  function fetchLog() {
+    fetch(`/jobs/${JOB_ID}/log?offset=${offset}`)
+      .then(r => r.json())
+      .then(d => {
+        d.lines.forEach(l => appendLog(l));
+        offset = d.offset;
+        if (!d.running && offset >= 0) {
+          logStatus.textContent = 'Pipeline ' + d.state + '.';
+          loadFiles();
+        } else {
+          setTimeout(fetchLog, 500);
+        }
+      });
+  }
+  fetchLog();
+}
+
+// ---- Output file list -------------------------------------------------------
+function humanSize(bytes) {
+  if (bytes < 1024)       return bytes + ' B';
+  if (bytes < 1048576)    return (bytes / 1024).toFixed(1)    + ' KB';
+  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+  return (bytes / 1073741824).toFixed(2) + ' GB';
+}
+
+function loadFiles() {
+  fetch(`/jobs/${JOB_ID}/files`)
+    .then(r => r.json())
+    .then(d => {
+      if (!d.files || d.files.length === 0) return;
+      const tbody = document.getElementById('files-body');
+      tbody.innerHTML = '';
+      d.files.forEach(f => {
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          `<td>${f.path}</td>` +
+          `<td class="muted">${humanSize(f.size)}</td>` +
+          `<td><a href="/jobs/${JOB_ID}/download/${encodeURIComponent(f.path)}">download</a></td>`;
+        tbody.appendChild(tr);
+      });
+      document.getElementById('files-section').style.display = '';
+    });
+}
+
+// Load file list immediately if job is already done
+if (!RUNNING) {
+  loadFiles();
+}
+
+// ---- Delete job -------------------------------------------------------------
+const btnDelete = document.getElementById('btn-delete');
+if (btnDelete) {
+  btnDelete.addEventListener('click', async () => {
+    if (!confirm('Delete job ' + JOB_ID + ' and all its files?')) return;
+    const r = await fetch(`/jobs/${JOB_ID}`, { method: 'DELETE' });
+    if (r.status === 204) {
+      window.location.href = '/';
+    } else {
+      const d = await r.json();
+      alert('Error: ' + (d.error || r.statusText));
+    }
+  });
+}
+</script>
+{% endblock %}

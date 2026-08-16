@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}MiniBeat HPC — new job{% endblock %}
+{% block content %}
+
+<section class="card">
+  <h2>New analysis run</h2>
+  <p class="muted">
+    Upload a set of grayscale TIF frames (one file per frame, sorted by name),
+    set the analysis parameters, then submit.
+  </p>
+
+  <form id="run-form" enctype="multipart/form-data">
+
+    <fieldset>
+      <legend>Frames</legend>
+      <label>TIF files
+        <input type="file" name="frames" multiple required accept=".tif,.tiff">
+      </label>
+      <p class="hint">
+        Grayscale TIF/TIFF only, one file per frame. Files are sorted by
+        filename — use zero-padded names (frame_0001.tif, frame_0002.tif …)
+        to ensure correct order. Generate them with
+        <code>ab_video_mp42tif.sh --gray</code> if starting from an MP4.
+      </p>
+      <label class="restore-label">Restore from saved run
+        <input type="file" id="params-file" accept=".json">
+      </label>
+      <p class="hint" id="params-status">
+        Load a <code>mb_params.json</code> from a previous job ZIP to restore
+        all parameter values below.
+      </p>
+    </fieldset>
+
+    <div class="grid-2">
+      <fieldset>
+        <legend>Acquisition</legend>
+        <label>Frame rate (fps)
+          <input type="number" name="framerate" id="framerate" value="14" min="0.1" step="any">
+        </label>
+        <label>Pixel size (µm)
+          <input type="number" name="pixel_size_um" value="0" min="0" step="any">
+          <span class="input-hint">0 = report in px/sec</span>
+        </label>
+        <label>Delay (frames between compared pair)
+          <input type="number" name="delay" value="2" min="1" step="1">
+        </label>
+        <label>Max frames to process
+          <input type="number" name="num_frames" value="" min="0" step="1" placeholder="all">
+          <span class="input-hint">blank = all frames</span>
+        </label>
+        <label>Scale width (px)
+          <input type="number" name="scale_width" value="0" min="0" step="1">
+          <span class="input-hint">0 = native resolution</span>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Block matching</legend>
+        <label>Macroblock size (px)
+          <input type="number" name="mb_size" value="16" min="4" step="4">
+        </label>
+        <label>Search range (px)
+          <input type="number" name="search_range" value="7" min="1" step="1">
+        </label>
+        <label>Intensity correction
+          <select name="correct_intensity">
+            <option value="no" selected>No</option>
+            <option value="yes">Yes</option>
+          </select>
+        </label>
+        <label>Min brightness (% of max)
+          <input type="number" name="min_brightness" value="0" min="0" max="100" step="1">
+          <span class="input-hint">0 = no masking</span>
+        </label>
+        <label>Parallel workers
+          <input type="number" name="n_jobs" value="-1" min="-1" step="1">
+          <span class="input-hint">−1 = all CPU cores</span>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Cleaning</legend>
+        <label>Neighbour threshold (σ)
+          <input type="number" name="clean_vect_thresh" value="2.0" min="0" step="0.1">
+        </label>
+        <label>FFT frequency threshold
+          <input type="number" name="clean_fft_thresh" value="4.0" min="0" step="0.1">
+        </label>
+        <label>Variation (CoV) threshold
+          <input type="number" name="clean_var_thresh" value="0.8" min="0" max="1" step="0.05">
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Peak detection</legend>
+        <label>Min peak height
+          <input type="number" name="min_peak_height" value="0" min="0" step="any">
+          <span class="input-hint">0 = auto</span>
+        </label>
+        <label>Min peak separation (sec)
+          <input type="number" name="min_peak_sep_sec" value="0" min="0" step="any">
+          <span class="input-hint">0 = no minimum</span>
+        </label>
+        <label>Skip first peak
+          <select name="skip_first_peak">
+            <option value="yes" selected>Yes (recommended)</option>
+            <option value="no">No</option>
+          </select>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Amplitude video export</legend>
+        <label>Export video
+          <select name="export_video">
+            <option value="yes" selected>Yes</option>
+            <option value="no">No</option>
+          </select>
+        </label>
+        <label>Colormap
+          <select name="video_colormap">
+            <option value="hot" selected>hot</option>
+            <option value="inferno">inferno</option>
+            <option value="plasma">plasma</option>
+            <option value="viridis">viridis</option>
+            <option value="jet">jet</option>
+          </select>
+        </label>
+        <label>Overlay alpha
+          <input type="number" name="video_alpha" value="0.6" min="0" max="1" step="0.05">
+        </label>
+      </fieldset>
+    </div>
+
+    <div class="form-footer">
+      <button type="submit" class="primary">Run analysis</button>
+      <span id="submit-status" class="muted"></span>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h3>Recent jobs</h3>
+  {% if jobs %}
+  <div class="table-wrap">
+  <table class="jobs">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Created (ET)</th>
+        <th>State</th>
+        <th>rc</th>
+        <th>Duration</th>
+        <th>Frames</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for j in jobs %}
+      <tr>
+        <td><code>{{ j.id }}</code></td>
+        <td>{{ j.created }}</td>
+        <td><span class="state state-{{ j.state }}">{{ j.state }}</span></td>
+        <td>{{ j.rc if j.rc is not none else "" }}</td>
+        <td class="muted">{{ j.elapsed or "—" }}</td>
+        <td class="muted">{{ j.params.num_frames or "all" if j.params else "—" }}</td>
+        <td><a href="{{ url_for('job_detail', jid=j.id) }}">open</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">No jobs yet.</p>
+  {% endif %}
+</section>
+
+<script>
+// Restore parameters from a saved mb_params.json
+document.getElementById('params-file').addEventListener('change', function () {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const status = document.getElementById('params-status');
+    try {
+      const p = JSON.parse(e.target.result);
+      const set = (name, val) => {
+        if (val === null || val === undefined) return;
+        const el = document.querySelector(`[name="${name}"]`);
+        if (el) el.value = val;
+      };
+      set('framerate',         p.framerate);
+      set('pixel_size_um',     p.pixel_size_um);
+      set('delay',             p.delay);
+      set('num_frames',        p.num_frames || '');
+      set('scale_width',       p.scale_width);
+      set('mb_size',           p.mb_size);
+      set('search_range',      p.search_range);
+      set('correct_intensity', p.correct_intensity ? 'yes' : 'no');
+      set('min_brightness',    p.min_brightness);
+      set('n_jobs',            p.n_jobs);
+      set('clean_vect_thresh', p.clean_vect_thresh);
+      set('clean_fft_thresh',  p.clean_fft_thresh);
+      set('clean_var_thresh',  p.clean_var_thresh);
+      set('min_peak_height',   p.min_peak_height);
+      set('min_peak_sep_sec',  p.min_peak_sep_sec);
+      set('skip_first_peak',   p.skip_first_peak ? 'yes' : 'no');
+      set('export_video',      p.export_video   ? 'yes' : 'no');
+      set('video_colormap',    p.video_colormap);
+      set('video_alpha',       p.video_alpha);
+      status.textContent = `Restored from ${file.name}`;
+      status.style.color = 'var(--ok)';
+    } catch (err) {
+      status.textContent = 'Error reading JSON: ' + err.message;
+      status.style.color = 'var(--error)';
+    }
+  };
+  reader.readAsText(file);
+});
+
+// Submit form via fetch
+document.getElementById('run-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const status = document.getElementById('submit-status');
+  const btn    = e.target.querySelector('button[type=submit]');
+  btn.disabled  = true;
+  status.textContent = 'Uploading…';
+  status.style.color = '';
+
+  const fd = new FormData(e.target);
+  try {
+    const r = await fetch('/jobs', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok) {
+      status.textContent = 'Error: ' + (data.error || r.statusText);
+      status.style.color = 'var(--error)';
+      btn.disabled = false;
+      return;
+    }
+    window.location.href = '/jobs/' + data.job_id;
+  } catch (err) {
+    status.textContent = 'Network error: ' + err;
+    status.style.color = 'var(--error)';
+    btn.disabled = false;
+  }
+});
+</script>
+{% endblock %}
