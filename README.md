@@ -61,6 +61,28 @@ If [ab_video_mp42tif.sh](https://github.com/rabravo/usr-local-bin) is on your PA
 
 Plots (signal, cycle analysis, contraction map) update automatically after Steps 3 and 4.
 
+## Why Python over MATLAB
+
+The original MotionGUI pipeline was written in MATLAB. MiniBeat Tracker reimplements it in Python for the following reasons:
+
+**Performance**  
+numba `@njit(parallel=True)` compiles the block-matching inner loop to native machine code, delivering performance comparable to or faster than MATLAB's `parfor` — with no Parallel Computing Toolbox license required. joblib distributes frame pairs across all CPU cores with no extra setup.
+
+**Cost**  
+MATLAB + Image Processing Toolbox + Parallel Computing Toolbox runs ~$3,000–$5,000 per seat commercially, with annual renewal. The Python stack used here is entirely free and open source.
+
+**Reproducibility**  
+`environment.yml` pins every dependency so any collaborator can recreate the exact environment with one command. MATLAB version mismatches between lab members are a common source of silent bugs.
+
+**Shareability**  
+The repository is public and installable by any collaborator with conda — no license server, no institutional IT involvement. MATLAB code typically cannot be shared outside institutions with active licenses.
+
+**Extensibility**  
+napari's plugin ecosystem allows cell segmentation (e.g. cellpose), image registration, and other tools to be added without leaving the GUI. The block-matching core in `minibeat-tracker/core/motion.py` can be swapped for optical flow (OpenCV) or deep learning-based displacement estimation without touching the rest of the pipeline.
+
+**Data interoperability**  
+Direct access to numpy arrays means outputs feed naturally into pandas, scipy, scikit-learn, or any other analysis library. MATLAB `.mat` files require conversion steps when moving data to R, Python, or cloud pipelines.
+
 ## Reference
 
 The motion analysis workflow implemented here is based on the methodology described in:
