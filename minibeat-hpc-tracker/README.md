@@ -23,9 +23,9 @@ sequenceDiagram
     R->>T: ssh -N -L 8766:localhost:8766 user@cluster
     R->>B: open http://localhost:8766/
 
-    B->>T: POST /jobs  (TIF frames + parameters)
+    B->>T: POST /jobs  (video file + parameters)
     T->>S: forward upload
-    S->>D: write TIFs → jobs/<id>/input/
+    S->>D: write video → jobs/<id>/input/
     S->>P: spawn worker thread
     S-->>B: 202 { job_id }
     B->>B: redirect to /jobs/<id>
@@ -37,6 +37,7 @@ sequenceDiagram
         S-->>B: data: [HH:MM:SS] line
     end
 
+    P->>D: ffmpeg → frames/ (grayscale TIFs at chosen FPS)
     P->>D: write CSVs + amplitude.mp4 → jobs/<id>/output/
     P->>S: state = done
 
@@ -51,14 +52,17 @@ sequenceDiagram
 
 ## What it does
 
-The pipeline mirrors the four-step MiniBeat Tracker desktop workflow, running headlessly:
+Upload a video, set the extraction FPS, and the pipeline handles everything:
 
 | Step | Module | Action |
 |------|--------|--------|
-| 1 | `mb_pipeline.py` | Load grayscale TIF frames from upload directory |
+| 0 | ffmpeg | Extract grayscale TIF frames from video at chosen FPS → `output/frames/` |
+| 1 | `mb_pipeline.py` | Load extracted TIF frames |
 | 2 | `minibeat_tracker.core.motion` | Exhaustive block matching (numba JIT + joblib) |
 | 3 | `minibeat_tracker.core.analysis` | Contraction time series + peak detection |
 | 4 | `minibeat_tracker.io.export` | CSV exports + amplitude overlay video |
+
+The output ZIP contains both the extracted TIF frames and all analysis results.
 
 ---
 
@@ -113,17 +117,9 @@ PORT=9000 DATA_ROOT=/scratch/$USER/minibeat-jobs ./run_server.sh
 
 ## Preparing input
 
-Upload grayscale TIF/TIFF files — one file per frame, sorted by filename
-(use zero-padded names such as `frame_0001.tif`, `frame_0002.tif`).
-
-To convert an MP4 video before uploading:
-
-```
-ab_video_mp42tif.sh --gray my_video.mp4 14
-# outputs: my_video_tif/frame_0001.tif ...
-```
-
-The `--gray` flag prevents chroma-subsampling errors in downstream tools.
+Upload any video file — MP4, AVI, MOV, MKV, M4V, or WMV. The server calls
+`ffmpeg` with `-pix_fmt gray` to extract frames directly to grayscale TIFs.
+No pre-conversion step is needed.
 
 ---
 
@@ -157,6 +153,7 @@ The `--gray` flag prevents chroma-subsampling errors in downstream tools.
 
 | File | Contents |
 |------|----------|
+| `frames/frame_XXXX.tif` | Extracted grayscale TIF frames |
 | `*_BeatingData.csv` | Per-frame contraction amplitude time series |
 | `*_RawPeaks.csv` | Detected peak times and heights |
 | `*_AnaPeaks.csv` | Per-cycle contraction/relaxation intervals (if ≥ 4 peaks) |

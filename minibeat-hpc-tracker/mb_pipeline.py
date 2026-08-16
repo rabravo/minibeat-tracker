@@ -4,17 +4,23 @@ mb_pipeline.py
 Headless pipeline for MiniBeat Tracker — runs the full motion analysis
 workflow without a GUI, designed for use on HPC clusters via mb_server.py.
 
-Pipeline steps mirror the four-panel napari GUI:
-  1. Load TIF frames from directory
+Pipeline steps:
+  0. Video extraction  (ffmpeg → grayscale TIF frames in output/frames/)
+  1. Load TIF frames
   2. Motion estimation  (numba block-match + joblib parallelism)
   3. Contraction data + peak detection
-  4. Peak analysis + CSV + amplitude video export
+  4. Peak analysis + CSV + amplitude overlay video export
+
+The extracted TIF frames land in tgt_dir/frames/ and are included in the
+output ZIP so the user gets both the raw frames and the analysis results.
 """
 from __future__ import annotations
 
 import importlib.util
 import json
 import os
+import shutil
+import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -91,10 +97,13 @@ from minibeat_tracker.io.video import export_amplitude_video               # noq
 
 @dataclass
 class JobParams:
-    src_dir: str = ""
-    tgt_dir: str = ""
+    src_dir: str = ""       # directory containing the uploaded video
+    tgt_dir: str = ""       # output directory
 
-    # Step 2: motion estimation
+    # Step 0: video extraction
+    video_filename: str = ""  # uploaded video filename (relative to src_dir)
+
+    # Steps 2–4: analysis — framerate also drives extraction FPS
     framerate: float = 14.0
     mb_size: int = 16
     search_range: int = 7
@@ -137,14 +146,62 @@ class Pipeline:
     # ------------------------------------------------------------------
     def preflight(self) -> list[str]:
         issues: list[str] = []
-        src = Path(self.params.src_dir)
-        if not self.params.src_dir or not src.is_dir():
-            issues.append(f"Input directory not found: {self.params.src_dir!r}")
-        if not self.params.tgt_dir:
+        p = self.params
+
+        if not p.src_dir or not Path(p.src_dir).is_dir():
+            issues.append(f"Input directory not found: {p.src_dir!r}")
+        elif p.video_filename:
+            video_path = Path(p.src_dir) / p.video_filename
+            if not video_path.is_file():
+                issues.append(f"Video file not found: {video_path}")
+            if not shutil.which("ffmpeg"):
+                issues.append(
+                    "ffmpeg not found on PATH — required for video extraction. "
+                    "Install with: conda install -c conda-forge ffmpeg"
+                )
+
+        if not p.tgt_dir:
             issues.append("Output directory is empty")
         else:
-            Path(self.params.tgt_dir).mkdir(parents=True, exist_ok=True)
+            Path(p.tgt_dir).mkdir(parents=True, exist_ok=True)
         return issues
+
+    # ------------------------------------------------------------------
+    def _extract_frames(self, video_path: Path, frames_dir: Path) -> int:
+        """Extract grayscale TIF frames from video using ffmpeg.
+
+        Frames land in frames_dir as frame_0001.tif, frame_0002.tif, ...
+        Returns ffmpeg exit code (0 = success).
+        """
+        frames_dir.mkdir(parents=True, exist_ok=True)
+        fps = self.params.framerate
+        cmd = [
+            "ffmpeg", "-i", str(video_path),
+            "-vf", f"fps={fps}",
+            "-pix_fmt", "gray",
+            str(frames_dir / "frame_%04d.tif"),
+            "-y",
+        ]
+        self.log(f"  ffmpeg: fps={fps}  →  {frames_dir.name}/frame_XXXX.tif")
+
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1,
+        )
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            line = line.rstrip()
+            # Only forward the informative ffmpeg lines, not the spam
+            if any(kw in line for kw in ("frame=", "fps=", "time=", "Error", "error", "Invalid")):
+                self.log(f"  ffmpeg: {line}")
+        rc = proc.wait()
+
+        if rc == 0:
+            n = len(list(frames_dir.glob("frame_*.tif")))
+            self.log(f"  Extracted {n} frames at {fps} fps")
+        else:
+            self.log(f"  ffmpeg exited with code {rc}")
+        return rc
 
     # ------------------------------------------------------------------
     def run(self) -> int:
@@ -160,13 +217,25 @@ class Pipeline:
         p = self.params
         src = Path(p.src_dir)
         tgt = Path(p.tgt_dir)
-        stem = src.name
+
+        # ---- Step 0: video extraction -------------------------------------------
+        if p.video_filename:
+            stem = Path(p.video_filename).stem
+            frames_dir = tgt / "frames"
+            self.log("Step 0: Extracting frames from video...")
+            rc = self._extract_frames(src / p.video_filename, frames_dir)
+            if rc != 0:
+                return rc
+            frames_src = frames_dir
+        else:
+            stem = src.name
+            frames_src = src
 
         # ---- Step 1: load frames ------------------------------------------------
         self.log("Step 1: Loading frames...")
-        frames = scan_tif_folder(src)
+        frames = scan_tif_folder(frames_src)
         if not frames:
-            self.log(f"No TIF files found in {src}")
+            self.log(f"No TIF files found in {frames_src}")
             return 1
         self.log(f"  {len(frames)} frames found")
 
@@ -280,26 +349,38 @@ class Pipeline:
 def _cli(argv: list[str]) -> int:
     import argparse
     ap = argparse.ArgumentParser(description="Run MiniBeat headlessly.")
-    ap.add_argument("--src", required=True, help="Input directory of TIF frames")
+    grp = ap.add_mutually_exclusive_group(required=True)
+    grp.add_argument("--video", help="Input video file (mp4/avi/mov …)")
+    grp.add_argument("--src",   help="Input directory of pre-extracted TIF frames")
     ap.add_argument("--tgt", required=True, help="Output directory")
-    ap.add_argument("--framerate", type=float, default=14.0)
+    ap.add_argument("--framerate", type=float, default=14.0,
+                    help="FPS for extraction (if --video) and for analysis")
     ap.add_argument("--mb-size", type=int, default=16)
     ap.add_argument("--search-range", type=int, default=7)
     ap.add_argument("--delay", type=int, default=2)
     ap.add_argument("--pixel-size-um", type=float, default=0.0)
-    ap.add_argument("--no-video", action="store_true")
+    ap.add_argument("--no-video-export", action="store_true")
     ap.add_argument("--n-jobs", type=int, default=-1)
     args = ap.parse_args(argv)
 
+    if args.video:
+        video = Path(os.path.abspath(args.video))
+        src_dir = str(video.parent)
+        video_filename = video.name
+    else:
+        src_dir = os.path.abspath(args.src)
+        video_filename = ""
+
     params = JobParams(
-        src_dir=os.path.abspath(args.src),
+        src_dir=src_dir,
         tgt_dir=os.path.abspath(args.tgt),
+        video_filename=video_filename,
         framerate=args.framerate,
         mb_size=args.mb_size,
         search_range=args.search_range,
         delay=args.delay,
         pixel_size_um=args.pixel_size_um,
-        export_video=not args.no_video,
+        export_video=not args.no_video_export,
         n_jobs=args.n_jobs,
     )
     return Pipeline(params).run()

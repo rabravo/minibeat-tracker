@@ -12,15 +12,15 @@
   <form id="run-form" enctype="multipart/form-data">
 
     <fieldset>
-      <legend>Frames</legend>
-      <label>TIF files
-        <input type="file" name="frames" multiple required accept=".tif,.tiff">
+      <legend>Video</legend>
+      <label>Video file
+        <input type="file" name="video" required accept=".mp4,.avi,.mov,.mkv,.m4v,.wmv">
       </label>
       <p class="hint">
-        Grayscale TIF/TIFF only, one file per frame. Files are sorted by
-        filename — use zero-padded names (frame_0001.tif, frame_0002.tif …)
-        to ensure correct order. Generate them with
-        <code>ab_video_mp42tif.sh --gray</code> if starting from an MP4.
+        Supported formats: MP4, AVI, MOV, MKV, M4V, WMV.
+        Frames are extracted as grayscale TIFs using ffmpeg at the frame rate
+        set below. The extracted frames are included in the output ZIP alongside
+        the analysis results.
       </p>
       <label class="restore-label">Restore from saved run
         <input type="file" id="params-file" accept=".json">
@@ -34,7 +34,7 @@
     <div class="grid-2">
       <fieldset>
         <legend>Acquisition</legend>
-        <label>Frame rate (fps)
+        <label>Frame rate (fps) — also used for extraction
           <input type="number" name="framerate" id="framerate" value="14" min="0.1" step="any">
         </label>
         <label>Pixel size (µm)
@@ -151,7 +151,7 @@
         <th>State</th>
         <th>rc</th>
         <th>Duration</th>
-        <th>Frames</th>
+        <th>Video</th>
         <th></th>
       </tr>
     </thead>
@@ -163,7 +163,7 @@
         <td><span class="state state-{{ j.state }}">{{ j.state }}</span></td>
         <td>{{ j.rc if j.rc is not none else "" }}</td>
         <td class="muted">{{ j.elapsed or "—" }}</td>
-        <td class="muted">{{ j.params.num_frames or "all" if j.params else "—" }}</td>
+        <td class="muted">{{ j.params.video_filename if j.params else "—" }}</td>
         <td><a href="{{ url_for('job_detail', jid=j.id) }}">open</a></td>
       </tr>
       {% endfor %}
@@ -225,7 +225,7 @@ document.getElementById('run-form').addEventListener('submit', async (e) => {
   const status = document.getElementById('submit-status');
   const btn    = e.target.querySelector('button[type=submit]');
   btn.disabled  = true;
-  status.textContent = 'Uploading…';
+  status.textContent = 'Uploading video…';
   status.style.color = '';
 
   const fd = new FormData(e.target);

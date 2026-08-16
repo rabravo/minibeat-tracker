@@ -34,7 +34,8 @@
   <h3>Parameters</h3>
   <div class="table-wrap">
   <table class="kv kv-small">
-    <tr><th>Frame rate</th>       <td>{{ job.params.framerate }} fps</td></tr>
+    <tr><th>Video</th>            <td>{{ job.params.video_filename or "—" }}</td></tr>
+    <tr><th>Frame rate</th>       <td>{{ job.params.framerate }} fps (extraction + analysis)</td></tr>
     <tr><th>Macroblock size</th>  <td>{{ job.params.mb_size }} px</td></tr>
     <tr><th>Search range</th>     <td>{{ job.params.search_range }} px</td></tr>
     <tr><th>Delay</th>            <td>{{ job.params.delay }} frames</td></tr>

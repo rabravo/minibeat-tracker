@@ -68,9 +68,9 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8766
 DEFAULT_DATA_ROOT = BASE_DIR / "WebJobs"
 
-ALLOWED_EXTENSIONS = {".tif", ".tiff"}
+ALLOWED_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".m4v", ".wmv"}
 MAX_LOG_LINES = 10000
-MAX_UPLOAD_MB = 8192       # 8 GB ceiling for large time-lapse stacks
+MAX_UPLOAD_MB = 8192       # 8 GB ceiling — large videos welcome
 
 
 # ---------------------------------------------------------------------------
@@ -281,39 +281,31 @@ def create_app(data_root: Path) -> Flask:
 
     @app.route("/jobs", methods=["POST"])
     def create_job():
-        files = request.files.getlist("frames")
-        files = [f for f in files if f and f.filename]
-        if not files:
-            return jsonify({"error": "No files uploaded"}), 400
+        f = request.files.get("video")
+        if not f or not f.filename:
+            return jsonify({"error": "No video file uploaded"}), 400
 
-        job = registry.create()
-        saved: List[str] = []
-
-        for f in files:
-            name = secure_filename(f.filename or "")
-            if not name or not _allowed(name):
-                continue
-            f.save(str(job.input_dir / name))
-            saved.append(name)
-
-        if not saved:
-            shutil.rmtree(job.root, ignore_errors=True)
+        name = secure_filename(f.filename)
+        if not name or not _allowed(name):
             return jsonify({
-                "error": f"No TIF files in upload (allowed: {sorted(ALLOWED_EXTENSIONS)})",
+                "error": f"Unsupported file type (allowed: {sorted(ALLOWED_EXTENSIONS)})",
             }), 400
 
-        job.append_log(f"Uploaded {len(saved)} TIF file(s)")
+        job = registry.create()
+        f.save(str(job.input_dir / name))
+        job.append_log(f"Uploaded: {name}")
 
         params = _params_from_form(request.form)
-        params.src_dir = str(job.input_dir)
-        params.tgt_dir = str(job.output_dir)
+        params.src_dir       = str(job.input_dir)
+        params.tgt_dir       = str(job.output_dir)
+        params.video_filename = name
 
         try:
             job.start(params)
         except RuntimeError as ex:
             return jsonify({"error": str(ex)}), 409
 
-        return jsonify({"job_id": job.id, "uploaded": saved, "frame_count": len(saved)}), 202
+        return jsonify({"job_id": job.id, "video": name}), 202
 
     @app.route("/jobs/<jid>")
     def job_detail(jid):

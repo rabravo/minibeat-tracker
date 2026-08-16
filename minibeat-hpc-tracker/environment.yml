@@ -13,5 +13,6 @@ dependencies:
   - joblib>=1.3
   - pandas>=2.2
   - matplotlib>=3.8
+  - ffmpeg          # frame extraction from video
   - flask>=3.0
   - werkzeug>=3.0
