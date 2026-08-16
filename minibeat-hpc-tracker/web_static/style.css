@@ -263,6 +263,46 @@ a:hover { text-decoration: underline; }
   flex-wrap: wrap;
 }
 
+/* ---- Download banner ------------------------------------------------------- */
+
+.download-banner {
+  display: none;
+  align-items: center;
+  gap: 1rem;
+  background: color-mix(in srgb, var(--ok) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+.download-banner.visible { display: flex; }
+.download-banner.banner-error {
+  background: color-mix(in srgb, var(--error) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--error) 40%, transparent);
+}
+
+.banner-icon { font-size: 1.6rem; color: var(--ok); flex-shrink: 0; }
+.banner-error .banner-icon { color: var(--error); }
+
+.banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+  flex: 1;
+}
+.banner-text strong { font-size: 1rem; color: var(--text); }
+.banner-text .muted { font-size: .85rem; }
+
+.btn-download {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-download:hover { opacity: .88; }
+
 /* ---- Log box --------------------------------------------------------------- */
 
 .log-box {

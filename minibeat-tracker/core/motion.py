@@ -172,7 +172,7 @@ def get_motion_vectors(
         max_int = max(load_and_resize(frames[i], scale_width, mb_size).max() for i in range(n))
         min_brightness = max_int / 100.0 * min_brightness
 
-    results = Parallel(n_jobs=n_jobs, backend="loky")(
+    results = Parallel(n_jobs=n_jobs, prefer="threads")(
         delayed(_process_frame_pair)(
             i, frames, delay, scale_width, mb_size, search_range,
             global_edges, min_brightness, correct_intensity,

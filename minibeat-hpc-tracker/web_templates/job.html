@@ -2,6 +2,18 @@
 {% block title %}MiniBeat HPC — job {{ job.id }}{% endblock %}
 {% block content %}
 
+<!-- Download banner — hidden until pipeline finishes -->
+<div id="download-banner" class="download-banner{% if job.state == 'done' %} visible{% endif %}">
+  <i class="fas fa-check-circle banner-icon"></i>
+  <div class="banner-text">
+    <strong>Analysis complete</strong>
+    <span class="muted">Results are ready to download</span>
+  </div>
+  <a href="{{ url_for('job_zip', jid=job.id) }}" id="dl-zip-banner" class="btn btn-download">
+    <i class="fas fa-file-zipper"></i> Download ZIP
+  </a>
+</div>
+
 <section class="card">
   <div class="job-header">
     <div>
@@ -10,9 +22,6 @@
     </div>
     <div class="job-actions">
       <span id="state-badge" class="state state-{{ job.state }}">{{ job.state }}</span>
-      {% if job.state == "done" %}
-      <a href="{{ url_for('job_zip', jid=job.id) }}" class="btn">Download ZIP</a>
-      {% endif %}
       {% if job.state not in ("running", "pending") %}
       <button id="btn-delete" class="btn btn-danger">Delete</button>
       {% endif %}
@@ -55,7 +64,7 @@
 {% endif %}
 
 <section class="card">
-  <h3>Live log</h3>
+  <h3>Log</h3>
   <div id="log-box" class="log-box">
     <pre id="log-pre"></pre>
   </div>
@@ -70,19 +79,16 @@
     <tbody id="files-body"></tbody>
   </table>
   </div>
-  <p class="muted" style="margin-top:.5rem">
-    <a href="{{ url_for('job_zip', jid=job.id) }}" id="dl-zip">Download all as ZIP</a>
-  </p>
 </section>
 
 <script>
 const JOB_ID  = {{ job.id | tojson }};
 const RUNNING = {{ (job.state == "running") | tojson }};
 
-// ---- Live log via SSE -------------------------------------------------------
-const logPre    = document.getElementById('log-pre');
-const logStatus = document.getElementById('log-status');
+const logPre     = document.getElementById('log-pre');
+const logStatus  = document.getElementById('log-status');
 const stateBadge = document.getElementById('state-badge');
+const banner     = document.getElementById('download-banner');
 
 function appendLog(text) {
   logPre.textContent += text + '\n';
@@ -105,23 +111,34 @@ function updateStatus(snap) {
   if (tdRc)       tdRc.textContent       = snap.rc !== null ? snap.rc : '—';
 }
 
+function showDownloadBanner(state) {
+  if (state === 'done') {
+    banner.classList.add('visible');
+    banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else if (state === 'error') {
+    banner.classList.add('visible', 'banner-error');
+  }
+}
+
 if (RUNNING) {
   const es = new EventSource(`/jobs/${JOB_ID}/stream`);
   es.onmessage = (e) => appendLog(e.data);
   es.addEventListener('done', (e) => {
     es.close();
-    logStatus.textContent = `Pipeline ${e.data}.`;
-    // Refresh status table and file list
+    logStatus.textContent = 'Pipeline ' + e.data + '.';
     fetch(`/jobs/${JOB_ID}/status`)
       .then(r => r.json())
-      .then(snap => { updateStatus(snap); loadFiles(); });
+      .then(snap => {
+        updateStatus(snap);
+        showDownloadBanner(snap.state);
+        loadFiles();
+      });
   });
   es.onerror = () => {
     es.close();
     logStatus.textContent = 'Stream disconnected.';
   };
 } else {
-  // Job already finished — pull the full log once via polling
   let offset = 0;
   function fetchLog() {
     fetch(`/jobs/${JOB_ID}/log?offset=${offset}`)
@@ -129,7 +146,7 @@ if (RUNNING) {
       .then(d => {
         d.lines.forEach(l => appendLog(l));
         offset = d.offset;
-        if (!d.running && offset >= 0) {
+        if (!d.running) {
           logStatus.textContent = 'Pipeline ' + d.state + '.';
           loadFiles();
         } else {
@@ -140,7 +157,6 @@ if (RUNNING) {
   fetchLog();
 }
 
-// ---- Output file list -------------------------------------------------------
 function humanSize(bytes) {
   if (bytes < 1024)       return bytes + ' B';
   if (bytes < 1048576)    return (bytes / 1024).toFixed(1)    + ' KB';
@@ -167,12 +183,10 @@ function loadFiles() {
     });
 }
 
-// Load file list immediately if job is already done
 if (!RUNNING) {
   loadFiles();
 }
 
-// ---- Delete job -------------------------------------------------------------
 const btnDelete = document.getElementById('btn-delete');
 if (btnDelete) {
   btnDelete.addEventListener('click', async () => {

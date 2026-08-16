@@ -191,14 +191,14 @@ class Pipeline:
         assert proc.stdout is not None
         for line in proc.stdout:
             line = line.rstrip()
-            # Only forward the informative ffmpeg lines, not the spam
-            if any(kw in line for kw in ("frame=", "fps=", "time=", "Error", "error", "Invalid")):
+            # Only surface errors — progress spam is suppressed
+            if any(kw in line for kw in ("Error", "error", "Invalid", "No such file")):
                 self.log(f"  ffmpeg: {line}")
         rc = proc.wait()
 
         if rc == 0:
             n = len(list(frames_dir.glob("frame_*.tif")))
-            self.log(f"  Extracted {n} frames at {fps} fps")
+            self.log(f"  Done — {n} frames at {fps} fps")
         else:
             self.log(f"  ffmpeg exited with code {rc}")
         return rc
