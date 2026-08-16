@@ -48,7 +48,21 @@ header {
   gap: .35rem;
   text-decoration: none;
 }
-.logo-icon { font-size: 1.2rem; color: var(--error); }
+.logo-icon {
+  font-size: 1.2rem;
+  color: var(--error);
+  display: inline-block;
+  animation: heartbeat 1.4s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  14%       { transform: scale(1.35); }
+  28%       { transform: scale(1); }
+  42%       { transform: scale(1.2); }
+  56%       { transform: scale(1); }
+}
 .logo-name  { font-weight: 700; font-size: 1.1rem; color: var(--text); letter-spacing: .01em; }
 .logo-tag   {
   font-size: .7rem;
