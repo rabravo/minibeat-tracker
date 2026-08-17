@@ -171,7 +171,11 @@ function loadFiles() {
       if (!d.files || d.files.length === 0) return;
       const tbody = document.getElementById('files-body');
       tbody.innerHTML = '';
-      d.files.forEach(f => {
+
+      const frames = d.files.filter(f => f.path.startsWith('frames/'));
+      const others = d.files.filter(f => !f.path.startsWith('frames/'));
+
+      others.forEach(f => {
         const tr = document.createElement('tr');
         tr.innerHTML =
           `<td>${f.path}</td>` +
@@ -179,6 +183,21 @@ function loadFiles() {
           `<td><a href="/jobs/${JOB_ID}/download/${encodeURIComponent(f.path)}">download</a></td>`;
         tbody.appendChild(tr);
       });
+
+      if (frames.length > 0) {
+        const totalSize = frames.reduce((s, f) => s + f.size, 0);
+        const pills = frames.map(f =>
+          `<span class="frame-pill">${f.path.replace('frames/', '')}</span>`
+        ).join('');
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          `<td><span class="frame-group-label">frames/ <span class="muted">(${frames.length} files)</span></span>` +
+          `<div class="frame-list">${pills}</div></td>` +
+          `<td class="muted">${humanSize(totalSize)}</td>` +
+          `<td></td>`;
+        tbody.appendChild(tr);
+      }
+
       document.getElementById('files-section').style.display = '';
     });
 }

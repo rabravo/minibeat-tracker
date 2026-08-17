@@ -303,6 +303,22 @@ a:hover { text-decoration: underline; }
 }
 .btn-download:hover { opacity: .88; }
 
+/* ---- Frame list (compact output section) ----------------------------------- */
+
+.frame-group-label { font-size: .82rem; color: var(--text); }
+
+.frame-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .2rem .55rem;
+  margin-top: .35rem;
+}
+.frame-pill {
+  font-family: var(--mono);
+  font-size: .72rem;
+  color: var(--muted);
+}
+
 /* ---- Log box --------------------------------------------------------------- */
 
 .log-box {
