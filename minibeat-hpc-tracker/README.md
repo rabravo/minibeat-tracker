@@ -70,7 +70,7 @@ The output ZIP contains both the extracted TIF frames and all analysis results.
 
 - Linux (HPC cluster or local workstation)
 - Miniconda or Anaconda
-- `minibeat-tracker/` must be present as a sibling directory (it is, inside `cardio-tracker/`)
+- `minibeat-tracker/` must be present as a sibling directory (it is, inside `minibeat-hpc-tracker/`)
 
 ---
 
@@ -80,7 +80,7 @@ The output ZIP contains both the extracted TIF frames and all analysis results.
 ./setup_server.sh
 ```
 
-This creates the `minibeat-hpc` conda environment at `cardio-tracker/envs/minibeat-hpc/`
+This creates the `minibeat-hpc` conda environment at `minibeat-hpc-tracker/envs/minibeat-hpc/`
 with Python, NumPy, SciPy, numba, OpenCV, joblib, pandas, matplotlib, Flask, and Werkzeug.
 No Qt, no napari — headless only.
 

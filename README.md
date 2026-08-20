@@ -30,11 +30,14 @@ conda env create -f environment.yml
 conda activate minibeat-tracker
 ```
 
+The conda environment file installs all dependencies and registers the
+`minibeat-tracker` command automatically via `pip install -e`.
+
 ## Running
 
 ```
 conda activate minibeat-tracker
-python -m minibeat-tracker
+minibeat-tracker
 ```
 
 ## Input
@@ -78,7 +81,7 @@ MATLAB + Image Processing Toolbox + Parallel Computing Toolbox runs ~$3,000–$5
 The repository is public and installable by any collaborator with conda — no license server, no institutional IT involvement. MATLAB code typically cannot be shared outside institutions with active licenses.
 
 **Extensibility**  
-napari's plugin ecosystem allows cell segmentation (e.g. cellpose), image registration, and other tools to be added without leaving the GUI. The block-matching core in `minibeat-tracker/core/motion.py` can be swapped for optical flow (OpenCV) or deep learning-based displacement estimation without touching the rest of the pipeline.
+napari's plugin ecosystem allows cell segmentation (e.g. cellpose), image registration, and other tools to be added without leaving the GUI. The block-matching core in `minibeat_tracker/core/motion.py` can be swapped for optical flow (OpenCV) or deep learning-based displacement estimation without touching the rest of the pipeline.
 
 **Data interoperability**  
 Direct access to numpy arrays means outputs feed naturally into pandas, scipy, scikit-learn, or any other analysis library. MATLAB `.mat` files require conversion steps when moving data to R, Python, or cloud pipelines.

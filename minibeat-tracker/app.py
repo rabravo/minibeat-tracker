@@ -1,4 +1,4 @@
-"""Launch napari viewer with CardioTracker dock widgets."""
+"""Launch napari viewer with MiniBeat dock widgets."""
 from __future__ import annotations
 
 import napari
@@ -23,7 +23,7 @@ def _on_float(dock, floating: bool) -> None:
 
 
 def run():
-    viewer = napari.Viewer(title="CardioTracker")
+    viewer = napari.Viewer(title="MiniBeat")
     state  = SessionState()
 
     # --- Fit window to 90% of available screen ---
@@ -47,7 +47,7 @@ def run():
     steps_tabs.addTab(step3, "3 · Contraction")
     steps_tabs.addTab(step4, "4 · Evaluate")
 
-    _d1 = viewer.window.add_dock_widget(steps_tabs, name="CardioTracker", area="right")
+    _d1 = viewer.window.add_dock_widget(steps_tabs, name="MiniBeat", area="right")
     _d2 = viewer.window.add_dock_widget(plots,      name="Plots",         area="right")
 
     # When a dock is floated, Qt defaults to Qt.Tool which stays on top of the
@@ -66,7 +66,7 @@ def run():
         dock.visibilityChanged.connect(act.setChecked)
         panels_menu.addAction(act)
 
-    _make_toggle(_d1, "CardioTracker")
+    _make_toggle(_d1, "MiniBeat")
     _make_toggle(_d2, "Plots")
 
     napari.run()

@@ -1,4 +1,4 @@
-name: cardio-tracker
+name: minibeat-tracker
 channels:
   - conda-forge
   - defaults
@@ -20,3 +20,4 @@ dependencies:
   - pip:
       - napari>=0.5         # no [all] — prevents pip from pulling a second Qt runtime
       - magicgui>=0.8
+      - -e ./minibeat-tracker

@@ -1,2 +1,2 @@
-"""Cardio-Tracker — cardiomyocyte motion analysis pipeline, Phase 1."""
+"""MiniBeat — cardiomyocyte motion analysis pipeline."""
 __version__ = "0.1.0"

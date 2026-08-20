@@ -5,11 +5,11 @@
 #   ./setup_server.sh
 #
 # The environment is created at:
-#   cardio-tracker/envs/minibeat-hpc/
+#   minibeat-hpc-tracker/envs/minibeat-hpc/
 #
 # After setup, activate with:
 #   conda activate minibeat-hpc
-#   # or: source cardio-tracker/envs/minibeat-hpc/bin/activate
+#   # or: source minibeat-hpc-tracker/envs/minibeat-hpc/bin/activate
 #
 set -euo pipefail
 

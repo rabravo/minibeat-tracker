@@ -270,6 +270,8 @@ def create_app(data_root: Path) -> Flask:
         static_folder=str(BASE_DIR / "web_static"),
     )
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
+    app.jinja_env.auto_reload = True
     registry = JobRegistry(data_root)
 
     @app.route("/")

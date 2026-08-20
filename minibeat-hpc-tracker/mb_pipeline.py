@@ -47,7 +47,7 @@ def _bootstrap_mbt() -> None:
         raise RuntimeError(
             f"minibeat-tracker package not found at {pkg_root}. "
             "Make sure minibeat-hpc-tracker/ and minibeat-tracker/ sit "
-            "side-by-side inside cardio-tracker/."
+            "side-by-side inside minibeat-hpc-tracker/."
         )
 
     # Register all packages as stubs (shallowest first) WITHOUT executing

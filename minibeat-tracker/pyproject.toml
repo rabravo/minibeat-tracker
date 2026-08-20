@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "minibeat-tracker"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[project.scripts]
+minibeat-tracker = "minibeat_tracker.app:run"
+
+[tool.setuptools]
+packages = [
+    "minibeat_tracker",
+    "minibeat_tracker.core",
+    "minibeat_tracker.io",
+    "minibeat_tracker.widgets",
+]
+package-dir = {"minibeat_tracker" = ""}
